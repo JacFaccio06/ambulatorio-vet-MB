@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Piattaforma Gestionale Veterinaria</title>
+<style>
+  body {
+    margin: 0;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: linear-gradient(to right, #cce5ff, #e6f7ff);
+    color: #003366;
+  }
+  header {
+    background-color: #007acc;
+    padding: 1rem;
+    color: white;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+  }
+  nav button {
+    background-color: #005c99;
+    border: none;
+    padding: 0.5rem 1rem;
+    color: white;
+    margin: 0 0.2rem;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+  }
+  nav button:hover {
+    background-color: #004d80;
+  }
+  .container {
+    padding: 2rem;
+  }
+  .section { display: none; }
+  .active { display: block; }
+  #loginScreen {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    background: linear-gradient(to right, #cce5ff, #e6f7ff);
+  }
+  #loginBox {
+    background: white;
+    padding: 2rem;
+    border-radius: 10px;
+    box-shadow: 0 0 15px rgba(0,0,0,0.2);
+    width: 320px;
+  }
+  #loginBox input {
+    display: block;
+    margin: 0.5rem 0;
+    padding: 0.5rem;
+    width: 100%;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+  }
+  #agendaControls {
+    margin-bottom: 1rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+  }
+  #agendaContainer {
+    overflow-x: auto;
+  }
+  .agenda-grid {
+    display: grid;
+    grid-template-columns: 100px repeat(6, 1fr);
+    border: 1px solid #ccc;
+    background-color: white;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+    user-select: none;
+  }
+  .agenda-cell, .agenda-header {
+    border: 1px solid #ccc;
+    padding: 5px 4px;
+    font-size: 0.85rem;
+    text-align: center;
+  }
+  .agenda-header {
+    background-color: #007acc;
+    color: white;
+    font-weight: 600;
+  }
+  .agenda-cell {
+    cursor: pointer;
+    min-height: 40px;
+  }
+  .agenda-cell:hover:not(.booked) {
+    background-color: #eef6ff;
+  }
+  .agenda-cell.booked {
+    background-color: #d1ecf1;
+    cursor: pointer;
+    white-space: pre-line;
+  }
+  textarea, input[type="text"], select {
+    width: 100%;
+    padding: 0.5rem;
+    margin-top: 0.3rem;
+    border-radius: 5px;
+    border: 1px solid #ccc;
+    font-size: 1rem;
+  }
+  button.action {
+    margin-top: 0.5rem;
+    padding: 0.5rem 1rem;
+    background-color: #007acc;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+  }
+  button.action:hover {
+    background-color: #005fbb;
+  }
+  #appointmentModal, #noteModal, #confirmDeleteModal {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: white;
+    border-radius: 10px;
+    padding: 1.5rem;
+    box-shadow: 0 0 15px rgba(0,0,0,0.3);
+    z-index: 1000;
+    width: 320px;
+    display: none;
+  }
+  #modalOverlay {
+    position: fixed;
+    top:0; left:0; right:0; bottom:0;
+    background: rgba(0,0,0,0.3);
+    z-index: 900;
+    display: none;
+  }
+  #noteList .note-box {
+    background-color: #e0f7ff;
+    padding: 0.5rem 1rem 0.5rem 0.7rem;
+    margin-top: 1rem;
+    border-radius: 5px;
+    position: relative;
+  }
+  #noteList .note-box button.delete-note {
+    position: absolute;
+    top: 5px;
+    right: 10px;
+    background-color: red;
+    color: white;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+  }
+  #noteList .note-box button.edit-note {
+    position: absolute;
+    top: 5px;
+    right: 40px;
+    background-color: #007acc;
+    color: white;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+  }
+</style>
+</head>
+<body>
+
+<div id="loginScreen">
+  <div id="loginBox">
+    <h2>Login</h2>
+    <input type="text" id="username" placeholder="Nome utente" autocomplete="username" />
+    <input type="password" id="password" placeholder="Password" autocomplete="current-password" />
+    <button onclick="login()">Accedi</button>
+  </div>
+</div>
+
+<div id="mainInterface" style="display:none;">
+  <header>
+    <h1>Area Personale - Ambulatorio Veterinario</h1>
+    <div>
+      <span id="welcomeMessage"></span>
+      <nav style="display:inline-block; margin-left: 1rem;">
+        <button onclick="showSection('agenda')">Agenda</button>
+        <button onclick="showSection('annotazioni')">Annotazioni</button>
+        <button onclick="showSection('amministrazione')">Amministrazione</button>
+        <button onclick="logout()">Logout</button>
+      </nav>
+    </div>
+  </header>
+
+  <div class="container">
+    <!-- AGENDA -->
+    <div id="agenda" class="section active">
+      <h2>Agenda</h2>
+      <div id="agendaControls">
+        <button onclick="prevWeek()">◀ Settimana precedente</button>
+        <div id="currentWeekLabel" style="font-weight:600;"></div>
+        <button onclick="nextWeek()">Settimana successiva ▶</button>
+      </div>
+      <div id="agendaContainer"></div>
+    </div>
+
+    <!-- ANNOTAZIONI -->
+    <div id="annotazioni" class="section">
+      <h2>Annotazioni</h2>
+      <textarea id="noteInput" placeholder="Scrivi una nota..."></textarea>
+      <button class="action" onclick="saveNote()">Salva nota</button>
+      <div id="noteList"></div>
+    </div>
+
+    <!-- AMMINISTRAZIONE -->
+    <div id="amministrazione" class="section">
+      <h2>Amministrazione</h2>
+      <p>Ciao, Benvenuto nell'area amministrativa dell'Ambulatorio Veterinario Dott. Maurizio Ballottari, in questa pagina troverai i link utili per l'accesso e la gestione dei moduli.</p>
+      <ul>
+        <li>ISCRIZIONE
+          <ul>
+            <li><a href="https://docs.google.com/forms/d/1bf0_uV96kTkafjto9zwzGZtAnp1PDz9YGOB79L95z2Q/edit" target="_blank" rel="noopener noreferrer">Modulo Iscrizione</a></li>
+            <li><a href="https://docs.google.com/spreadsheets/d/1psz-f5oH8V3BKUyzIDHq10rPvrJyT6XMaJ_9M3Wk014/edit?usp=sharing" target="_blank" rel="noopener noreferrer">Excel Iscrizione</a></li>
+          </ul>
+        </li>
+        <li>ACCETTAZIONE
+          <ul>
+            <li><a href="https://docs.google.com/forms/d/11SHmM6ahjqzcpQq9HLGr2WdlISyQhsJHw2xUvdXhYlw/edit" target="_blank" rel="noopener noreferrer">Modulo Accettazione</a></li>
+            <li><a href="https://docs.google.com/spreadsheets/d/11bK3fplgP8IkVOGNS8RX6xjR7lLgPdlUnil5c5oC9s/edit?usp=sharing" target="_blank" rel="noopener noreferrer">Excel Accettazione</a></li>
+          </ul>
+        </li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- Modale appuntamento -->
+<div id="appointmentModal">
+  <h3>Nuova Prenotazione / Modifica</h3>
+  <form id="appointmentForm" onsubmit="event.preventDefault(); saveAppointment();">
+    <label>Nome cliente:<input type="text" id="cliente" /></label><br/>
+    <label>Nome paziente:<input type="text" id="paziente" /></label><br/>
+    <label>Specie:
+      <select id="specie">
+        <option value="">-</option>
+        <option value="cane">Cane</option>
+        <option value="gatto">Gatto</option>
+        <option value="coniglio">Coniglio</option>
+      </select>
+    </label><br/>
+    <label>Motivazione:
+      <select id="motivazione">
+        <option value="">-</option>
+        <option value="visita">Visita</option>
+        <option value="vaccinazione">Vaccinazione</option>
+        <option value="pulizia denti">Pulizia denti</option>
+        <option value="analisi del sangue">Analisi del sangue</option>
+        <option value="Chirurgia">Chirurgia</option>
+        <option value="Altro">Altro</option>
+      </select>
+    </label><br/>
+    <label>Note:<br/>
+      <textarea id="note" rows="3"></textarea>
+    </label><br/>
+    <div>
+      <button class="action" type="submit">Salva</button>
+      <button class="action" type="button" onclick="closeAppointmentModal()">Annulla</button>
+      <button class="action" type="button" id="deleteAppointmentBtn" style="background-color:#cc3333; display:none;" onclick="deleteAppointment()">Elimina</button>
+    </div>
+  </form>
+</div>
+
+<!-- Modale conferma eliminazione -->
+<div id="confirmDeleteModal">
+  <h3>Conferma Eliminazione</h3>
+  <p>Sei sicuro di voler eliminare questa prenotazione?</p>
+  <button class="action" onclick="confirmDelete()">Sì</button>
+  <button class="action" onclick="cancelDelete()">No</button>
+</div>
+
+<div id="modalOverlay"></div>
+
+<script>
+  // Utenti e password iniziali (case sensitive)
+  const users = {
+    'Maurizio': 'Maurizio123',
+    'Nicola': 'Nicola123',
+    'Stagisti2025': 'Stagisti25!',
+    'user': 'user123',
+    'Valentina': 'Valentina123',
+    'Bonf': 'Benito.elmejo',
+    'Admin': 'admin2025!',
+    'Jacopo': 'Geremia.14'
+  };
+
+  // Stato
+  let currentUser = null;
+  let appointments = {};
+  let notes = [];
+  let selectedWeekStart = null; // lunedì di settimana corrente
+  let editingAppointmentKey = null; // key appuntamento in modifica
+  let deleteAppointmentKey = null;
+
+  // Funzione login
+  function login() {
+    const username = document.getElementById('username').value.trim();
+    const password = document.getElementById('password').value;
+
+    if (users[username] && users[username] === password) {
+      currentUser = username;
+      document.getElementById('loginScreen').style.display = 'none';
+      document.getElementById('mainInterface').style.display = 'block';
+      document.getElementById('welcomeMessage').textContent = `Benvenuto, ${currentUser}`;
+      selectedWeekStart = getMonday(new Date());
+      loadData();
+      showSection('agenda');
+      renderAgenda();
+    } else {
+      alert('Utente o password errati!');
+    }
+  }
+
+  // Logout
+  function logout() {
+    currentUser = null;
+    editingAppointmentKey = null;
+    deleteAppointmentKey = null;
+    document.getElementById('username').value = '';
+    document.getElementById('password').value = '';
+    document.getElementById('loginScreen').style.display = 'flex';
+    document.getElementById('mainInterface').style.display = 'none';
+  }
+
+  // Carica dati da localStorage
+  function loadData() {
+    const apptsRaw = localStorage.getItem('appointments');
+    appointments = apptsRaw ? JSON.parse(apptsRaw) : {};
+    const notesRaw = localStorage.getItem('notes');
+    notes = notesRaw ? JSON.parse(notesRaw) : [];
+  }
+
+  // Salva dati su localStorage
+  function saveData() {
+    localStorage.setItem('appointments', JSON.stringify(appointments));
+    localStorage.setItem('notes', JSON.stringify(notes));
+  }
+
+  // Cambia sezione (agenda, annotazioni, amministrazione)
+  function showSection(id) {
+    const sections = document.querySelectorAll('.section');
+    sections.forEach(sec => sec.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+  }
+
+  // Ritorna il lunedì della settimana della data passata
+  function getMonday(d) {
+    d = new Date(d);
+    const day = d.getDay();
+    const diff = d.getDate() - (day === 0 ? 6 : day - 1);
+    return new Date(d.setDate(diff));
+  }
+
+  // Avanza settimana
+  function nextWeek() {
+    selectedWeekStart.setDate(selectedWeekStart.getDate() + 7);
+    renderAgenda();
+  }
+  // Torna settimana precedente
+  function prevWeek() {
+    selectedWeekStart.setDate(selectedWeekStart.getDate() - 7);
+    renderAgenda();
+  }
+
+  // Rende la data in formato DD/MM
+  function formatDateDM(d) {
+    return `${d.getDate().toString().padStart(2,'0')}/${(d.getMonth()+1).toString().padStart(2,'0')}`;
+  }
+
+  // Rende la data in formato YYYY-MM-DD
+  function formatDateYMD(d) {
+    return d.toISOString().slice(0,10);
+  }
+
+  // Rende ora in formato HH:MM (sempre 2 cifre)
+  function formatTimeHM(date) {
+    return date.toTimeString().slice(0,5);
+  }
+
+  // Genera le fasce orarie da 08:00 a 19:30 a intervalli di 30 minuti
+  function getTimeSlots() {
+    let slots = [];
+    let start = new Date();
+    start.setHours(8,0,0,0);
+    let end = new Date();
+    end.setHours(19,30,0,0);
+    while (start <= end) {
+      slots.push(formatTimeHM(start));
+      start = new Date(start.getTime() + 30*60000);
+    }
+    return slots;
+  }
+
+  // Genera il calendario agenda per la settimana selezionata
+  function renderAgenda() {
+    const container = document.getElementById('agendaContainer');
+    container.innerHTML = '';
+
+    // Intestazioni colonne: Orari + 6 giorni (Lun-Sab)
+    const grid = document.createElement('div');
+    grid.className = 'agenda-grid';
+
+    // Header orari e giorni
+    grid.appendChild(createCell('','agenda-header')); // Angolo in alto a sx
+    let days = [];
+    for(let i=0; i<6; i++) {
+      let dayDate = new Date(selectedWeekStart);
+      dayDate.setDate(dayDate.getDate() + i);
+      days.push(dayDate);
+      const headerCell = createCell(
+        ['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab'][i] + ' ' + formatDateDM(dayDate),
+        'agenda-header'
+      );
+      grid.appendChild(headerCell);
+    }
+
+    // Orari di 30 minuti dalle 8:00 alle 19:30
+    const timeSlots = getTimeSlots();
+
+    for(let slot of timeSlots) {
+      // Riga di orario in prima colonna
+      grid.appendChild(createCell(slot, 'agenda-header'));
+
+      // Celle prenotazioni per ogni giorno
+      for(let i=0; i<6; i++) {
+        const dayDate = new Date(selectedWeekStart);
+        dayDate.setDate(dayDate.getDate() + i);
+
+        const key = `${formatDateYMD(dayDate)}_${slot}`;
+        const cell = createCell('', 'agenda-cell');
+        cell.dataset.key = key;
+
+        if(appointments[key]) {
+          const appt = appointments[key];
+          cell.classList.add('booked');
+          cell.textContent = `${appt.cliente || '-'}\n${appt.paziente || '-'}\n${appt.specie || '-'}\n${appt.motivazione || '-'}\nOperatore: ${appt.operatore}`;
+          cell.title = `Operatore: ${appt.operatore}\nNote: ${appt.note || ''}`;
+        } else {
+          cell.textContent = '';
+        }
+
+        cell.onclick = () => openAppointmentModal(key);
+        grid.appendChild(cell);
+      }
+    }
+
+    container.appendChild(grid);
+
+    // Aggiorna label settimana
+    const lun = days[0];
+    const sab = days[5];
+    document.getElementById('currentWeekLabel').textContent = `Settimana dal ${formatDateDM(lun)} al ${formatDateDM(sab)}`;
+  }
+
+  // Crea una cella con testo e classe opzionale
+  function createCell(text, className) {
+    const div = document.createElement('div');
+    div.className = className;
+    div.textContent = text;
+    return div;
+  }
+
+  // Apri modale per prenotazione (nuova o modifica)
+  function openAppointmentModal(key) {
+    editingAppointmentKey = key;
+    const modal = document.getElementById('appointmentModal');
+    modal.style.display = 'block';
+    document.getElementById('modalOverlay').style.display = 'block';
+
+    if(appointments[key]) {
+      const appt = appointments[key];
+      document.getElementById('cliente').value = appt.cliente || '';
+      document.getElementById('paziente').value = appt.paziente || '';
+      document.getElementById('specie').value = appt.specie || '';
+      document.getElementById('motivazione').value = appt.motivazione || '';
+      document.getElementById('note').value = appt.note || '';
+      document.getElementById('deleteAppointmentBtn').style.display = 'inline-block';
+    } else {
+      document.getElementById('cliente').value = '';
+      document.getElementById('paziente').value = '';
+      document.getElementById('specie').value = '';
+      document.getElementById('motivazione').value = '';
+      document.getElementById('note').value = '';
+      document.getElementById('deleteAppointmentBtn').style.display = 'none';
+    }
+  }
+
+  // Chiudi modale prenotazione
+  function closeAppointmentModal() {
+    document.getElementById('appointmentModal').style.display = 'none';
+    document.getElementById('modalOverlay').style.display = 'none';
+    editingAppointmentKey = null;
+  }
+
+  // Salva prenotazione
+  function saveAppointment() {
+    if(!editingAppointmentKey) return;
+
+    // Salva con operatore corrente
+    appointments[editingAppointmentKey] = {
+      cliente: document.getElementById('cliente').value.trim(),
+      paziente: document.getElementById('paziente').value.trim(),
+      specie: document.getElementById('specie').value,
+      motivazione: document.getElementById('motivazione').value,
+      note: document.getElementById('note').value.trim(),
+      operatore: currentUser
+    };
+
+    saveData();
+    closeAppointmentModal();
+    renderAgenda();
+  }
+
+  // Elimina prenotazione (richiama modale conferma)
+  function deleteAppointment() {
+    deleteAppointmentKey = editingAppointmentKey;
+    closeAppointmentModal();
+    document.getElementById('confirmDeleteModal').style.display = 'block';
+    document.getElementById('modalOverlay').style.display = 'block';
+  }
+  function confirmDelete() {
+    if(deleteAppointmentKey && appointments[deleteAppointmentKey]) {
+      delete appointments[deleteAppointmentKey];
+      saveData();
+      renderAgenda();
+    }
+    deleteAppointmentKey = null;
+    document.getElementById('confirmDeleteModal').style.display = 'none';
+    document.getElementById('modalOverlay').style.display = 'none';
+  }
+  function cancelDelete() {
+    deleteAppointmentKey = null;
+    document.getElementById('confirmDeleteModal').style.display = 'none';
+    document.getElementById('modalOverlay').style.display = 'none';
+  }
+
+  // Gestione note
+  function saveNote() {
+    const noteText = document.getElementById('noteInput').value.trim();
+    if(noteText) {
+      notes.push({ text: noteText, user: currentUser, date: new Date().toISOString() });
+      saveData();
+      document.getElementById('noteInput').value = '';
+      renderNotes();
+    }
+  }
+  function renderNotes() {
+    const container = document.getElementById('noteList');
+    container.innerHTML = '';
+    if(notes.length === 0) {
+      container.textContent = 'Nessuna annotazione salvata.';
+      return;
+    }
+    notes.forEach((n,i) => {
+      const div = document.createElement('div');
+      div.className = 'note-box';
+      div.textContent = `${n.user} (${new Date(n.date).toLocaleString()}): ${n.text}`;
+      const delBtn = document.createElement('button');
+      delBtn.textContent = 'X';
+      delBtn.title = 'Elimina nota';
+      delBtn.className = 'delete-note';
+      delBtn.onclick = () => {
+        notes.splice(i,1);
+        saveData();
+        renderNotes();
+      };
+      div.appendChild(delBtn);
+      container.appendChild(div);
+    });
+  }
+
+  // Al caricamento
+  window.onload = () => {
+    // Se vuoi puoi far partire il focus sul campo username
+    document.getElementById('username').focus();
+  };
+</script>
+
+</body>
+</html>
